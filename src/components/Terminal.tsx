@@ -2,8 +2,13 @@
 
 import { useEffect, useState, useRef, KeyboardEvent, useMemo, useCallback } from 'react';
 
+interface TerminalLine {
+  content: string;
+  isResponse: boolean;
+}
+
 const Terminal = () => {
-  const [currentText, setCurrentText] = useState<Array<{ content: string; isResponse: boolean }>>([]);
+  const [currentText, setCurrentText] = useState<TerminalLine[]>([]);
   const [currentCommand, setCurrentCommand] = useState('');
   const [currentResponse, setCurrentResponse] = useState('');
   const [userInput, setUserInput] = useState('');
@@ -43,6 +48,11 @@ const Terminal = () => {
   const userScrolledRef = useRef(false);
   const isAtBottomRef = useRef(true);
 
+  const [isTyping, setIsTyping] = useState(false);
+  const [currentTypingTimeout, setCurrentTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [currentCommandIndex, setCurrentCommandIndex] = useState(0);
+
   const playTypeSound = () => {
     if (audioRef.current) {
       const clone = audioRef.current.cloneNode() as HTMLAudioElement;
@@ -54,13 +64,14 @@ const Terminal = () => {
 
   // --- COMMAND RESPONSES (Keep as is) ---
   const commandResponses = useMemo(() => ({
-    'help': 'Available commands:\n\n# Commands About Me\n[+] whoami --> Find out who I am\n[+] whatdoido --> Find out what I do\n[+] education --> Find out about my education\n[+] toolsiknow --> List tools and technologies I know\n[+] expertise --> List my areas of expertise\n[+] experiences --> List my professional experiences\n\n# Miscellaneous Commands\n[+] ls --> List files in current directory\n[+] cat --> Cat?\n[+] clear --> Clear the terminal',
+    'help': 'Available commands:\n\n# Commands About Me\n[+] whoami --> Find out who I am\n[+] whatdoido --> Find out what I do\n[+] education --> Find out about my education\n[+] toolsiknow --> List tools and technologies I know\n[+] expertise --> List my areas of expertise\n[+] experiences --> List my professional experiences\n[+] contact --> Find out how to contact me\n\n# Miscellaneous Commands\n[+] ls --> List files in current directory\n[+] cat --> Cat?\n[+] clear --> Clear the terminal',
     'whoami': "I'm a third-year Software Engineering student focused on gaining expertise in cybersecurity, particularly in offensive security and penetration testing. I have a strong interest in web security, code vulnerabilities, and penetration testing, constantly developing my skills in these areas. My experience in backend web development with .NET Core technologies over the past few years has given me a developer's perspective in this field. I've gained practical experience in various security scenarios by ranking in the top 5% globally on the TryHackMe platform. I actively use cybersecurity tools to analyze and report real-world security vulnerabilities.",
     'whatdoido': 'I do cybersecurity research and penetration testing. I participate in bug bounty programs and CTF competitions. I also develop web applications, specifically in the .NET Core ecosystem.',
     'education': "I'm a 3rd year Software Engineering student at İstanbul Sağlık ve Teknoloji Üniversitesi. I'm a full scholarship recipient.",
     'expertise': "# Areas of Expertise\n[*] .NET Core\n[*] Web Application Security (OWASP Top 10)\n[*] Network Security & Penetration Testing (MITM, ARP Spoofing, WPA2 Cryptanalysis, IDS/OPS Evasion)\n[*] CTF & Red Teaming (Web Exploitation, OSINT, Privilege Escalation, Reverse Engineering)\n[*] Linux Systems\n[*] SQL Server Administration\n[*] Scripting & Automation (Python, Bash, API Pentesting)\n[*] Vulnerability Research (ExploitDB, SearchSploit)\n[*] Post-Exploitation (Reverse Shells, Bind Shells, Privilege Escalation, Persistence Techniques)",
     'toolsiknow': "# Web & API Pentesting\n[*] Burp Suite\n[*] cURL\n[*] Postman\n[*] Ffuf\n\n# Password Cracking & Brute Force\n[*] Hydra\n[*] John the Ripper\n[*] Hashcat\n[*] Crunch\n\n# Network Reconnaissance & Scanning\n[*] Nmap\n[*] Masscan\n[*] Wireshark\n\n# Vulnerability Assessment & Exploitation\n[*] SQLMap\n[*] Nikto\n[*] Metasploit\n[*] ExploitDB\n[*] SearchSploit\n\n# OSINT & Information Gathering\n[*] OSINT Framework\n[*] theHarvester\n[*] Sherlock\n\n# Wordlist & Directory Discovery\n[*] Gobuster\n[*] Dirb\n[*] Dirbuster\n\n# Shell Access & Privilege Escalation\n[*] LinPEAS\n[*] GTFOBins\n\n# Malware & Reverse Engineering\n[*] IDA Free\n[*] Strings\n[*] Binwalk\n[*] Steghide\n\n# Scripting & Automation\n[*] Python\n[*] Bash Scripting\n\n# Web Development & Database Management\n[*] .NET Core\n[*] Entity Framework\n[*] SQL Server\n[*] MySQL\n\n# Version Control & CI/CD\n[*] Git\n[*] GitHub Actions",
     'experiences': "# CYBERSECURITY EXPERIENCE\nTryHackMe.com – Top 5% (01/23 – Present)\nCTF Player\n[*] Actively participating on TryHackMe platform to enhance my knowledge and skills by solving machines with various security vulnerabilities.\n[*] Completed over 50 machines focusing on web security, vulnerability analysis, network security, and exploitation.\n\n# PROFESSIONAL EXPERIENCE\nNext4biz Information Technologies Inc. (06/24 – 07/24)\n.NET Core Developer Intern\n[*] Completed my first mandatory internship at Next4biz, working intensively with experienced mentors on SQL Server Administration and .NET Core development.\n[*] Developed a Student Information System platform from scratch, gaining experience in building a complete web application with all components.\n[*] Worked with modern technologies including SignalR, Hangfire, Microsoft Identity, and Entity Framework Core.\n\nISTUN Software Development Team (08/23 – Present)\nLead Software Developer\n[*] Active member of a 6-person software development team established under the leadership of Dr. Nazlı TOKATLI, head of the Computer Engineering department at the university.\n[*] Played a key role in developing and managing important projects.\n[*] Utilized technologies such as Git, .NET Core, and AI Fine Tuning during this experience.",
+    'contact': "You can contact me via email at contact@mehmetakifvardar.com or connect with me on LinkedIn. Socials down below!",
     'ls': "flag.txt",
     'cat': "Usage: cat [filename]",
     'cat flag.txt': FLAG_VALUE, // Use constant
@@ -251,108 +262,105 @@ const Terminal = () => {
   }, [isTerminalReady, isInitialDemo, commandResponses]); // Dependencies seem correct
 
   // --- COMMAND PROCESSING ---
+  const handleCommand = async (command: string): Promise<string> => {
+    const trimmedCommand = command.trim();
+    if (!trimmedCommand) {
+      return '';
+    }
+
+    // Handle 'clear' command
+    if (trimmedCommand === 'clear') {
+      setCurrentText([]);
+      return '';
+    }
+
+    // Handle 'cat' command variants
+    if (trimmedCommand.startsWith('cat ')) {
+      const fileName = trimmedCommand.substring(4).trim();
+      if (fileName === 'flag.txt') {
+        return commandResponses['cat flag.txt'];
+      } else if (fileName === '') {
+        return commandResponses['cat']; // Show usage
+      } else {
+        return `cat: ${fileName}: No such file or directory`;
+      }
+    }
+
+    // Handle other commands
+    return (commandResponses as Record<string, string>)[trimmedCommand] || `Command not found: ${trimmedCommand}`;
+  };
+
   const processCommand = async (command: string) => {
-      const trimmedCommand = command.trim();
-      if (!trimmedCommand) {
-          // If user just presses enter, add a new prompt line
-          setCurrentText(prev => [...prev, { content: `<span class="terminal-prompt">${PROMPT}</span><span class="terminal-command"></span>\n`, isResponse: false }]);
-          setUserInput(''); // Clear input
-          setIsWaitingForInput(true); // Ready for next input immediately
-          return;
-      }
+    setIsTyping(true);
+    setCurrentText(prev => [...prev, { content: `<span class="terminal-prompt">${PROMPT}</span><span class="terminal-command" style="color: #ffffff; font-weight: bold;">${command}</span>\n`, isResponse: false }]);
+    
+    // Clear any existing typing timeout
+    if (currentTypingTimeout) {
+      clearTimeout(currentTypingTimeout);
+    }
 
-      setIsWaitingForInput(false);
-
-      // Add command to history FIRST
-      setCurrentText(prev => [...prev, { content: `<span class="terminal-prompt">${PROMPT}</span><span class="terminal-command" style="color: #ffffff; font-weight: bold;">${trimmedCommand}</span>\n`, isResponse: false }]);
-      setUserInput(''); // Clear the visible input line now
-      forceScrollToBottom(); // Ensure command line is visible
-
-      // Handle 'clear' command
-      if (trimmedCommand === 'clear') {
-          setIsTypingResponse(true); // Show clearing message
-          setCurrentResponse(commandResponses['clear']);
-          forceScrollToBottom();
-          await new Promise(resolve => setTimeout(resolve, 500));
-
-          setCurrentText([]); // Clear history
-          setCurrentResponse(''); // Clear message
-          setIsTypingResponse(false);
-          setIsWaitingForInput(true); // Ready for input
-          // Focus will be handled by the isWaitingForInput useEffect
-          return;
-      }
-
-      let response = '';
-      let isFlagCommand = false;
-
-      // Handle 'cat' command variants
-      if (trimmedCommand.startsWith('cat ')) {
-          const fileName = trimmedCommand.substring(4).trim();
-          if (fileName === 'flag.txt') {
-              response = commandResponses['cat flag.txt'];
-              isFlagCommand = true;
-          } else if (fileName === '') {
-              response = commandResponses['cat']; // Show usage
-          } else {
-              response = `cat: ${fileName}: No such file or directory`;
-          }
-      } else {
-          response = (commandResponses as Record<string, string>)[trimmedCommand] || `Command not found: ${trimmedCommand}`;
-      }
-
-      // --- Type out the response ---
-      setIsTypingResponse(true);
-      setCurrentResponse(''); // Clear before typing
-      forceScrollToBottom(); // Ensure space is visible
-      await new Promise(resolve => setTimeout(resolve, 50)); // Small pause
-
-      const responseSpeed = calculateTypingSpeed(response, false);
-      for (let i = 0; i <= response.length; i++) {
-          setCurrentResponse(response.slice(0, i));
-          // Play sound less frequently for fast typing or spaces/newlines
-          if (responseSpeed > 30 && response[i - 1] !== '\n' && response[i - 1] !== ' ') playTypeSound();
-          else if (i % 3 === 0 && response[i - 1] !== '\n' && response[i - 1] !== ' ') playTypeSound(); // Slower sound for fast typing
-          // Scrolling handled by isTypingResponse effect + observer
-          await new Promise(resolve => setTimeout(resolve, responseSpeed));
-      }
-      forceScrollToBottom(); // Ensure final scroll
-
-      // Add the completed response to history
-      if (isFlagCommand) {
-          // Add special formatting for the flag
-           setCurrentText(prev => [
-              ...prev,
-              { content: `<span class="flag-highlight">${FLAG_VALUE}</span> <button class="inline-copy-btn" onclick="window.copyFlag('${FLAG_VALUE}')">Copy Flag 📋</button>\n\n`, isResponse: true }
-          ]);
-      } else {
-          // Add normal response with consistent white color
-          setCurrentText(prev => [...prev, { content: `<span style="color: #ffffff;">${response}</span>\n\n`, isResponse: true }]);
-      }
-
-      setCurrentResponse(''); // Clear the currently typing response line
-      setIsTypingResponse(false);
-      setIsWaitingForInput(true); // Ready for next command
-      // Focus/scroll handled by useEffects based on isWaitingForInput
+    const response = await handleCommand(command);
+    setCurrentText(prev => [...prev, { content: `<span style="color: #ffffff;">${response}</span>\n\n`, isResponse: true }]);
+    
+    // Type out the response
+    const words = response.split(' ');
+    let currentText = '';
+    
+    for (let i = 0; i < words.length; i++) {
+      currentText += (i > 0 ? ' ' : '') + words[i];
+      setCurrentText(prev => {
+        const newOutput = [...prev];
+        newOutput[newOutput.length - 1] = { content: `<span style="color: #ffffff;">${currentText}</span>\n\n`, isResponse: true };
+        return newOutput;
+      });
+      
+      // Create a new timeout for each word
+      const timeout = setTimeout(() => {
+        if (i === words.length - 1) {
+          setIsTyping(false);
+          setCurrentTypingTimeout(null);
+        }
+      }, 50);
+      
+      setCurrentTypingTimeout(timeout);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
   };
 
 
   // --- INPUT HANDLERS ---
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault(); // Prevent form submission
-      e.stopPropagation(); // Stop event from bubbling up
-      const command = userInput.trim();
-      if (command) {
-        processCommand(command);
-        setUserInput(''); // Clear input immediately
-      } else {
-        // If empty command, just add a new prompt line
-        setCurrentText(prev => [...prev, { content: `<span class="terminal-prompt">${PROMPT}</span><span class="terminal-command"></span>\n`, isResponse: false }]);
-        setUserInput('');
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!isTyping) {
+        const command = userInput.trim();
+        if (command) {
+          setUserInput('');
+          setCommandHistory(prev => [...prev, command]);
+          setCurrentCommandIndex(prev => prev + 1);
+          processCommand(command);
+        }
       }
-      setIsWaitingForInput(true);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!isTyping) {
+        if (currentCommandIndex > 0) {
+          setUserInput(commandHistory[currentCommandIndex - 1]);
+          setCurrentCommandIndex(prev => prev - 1);
+        }
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isTyping) {
+        if (currentCommandIndex < commandHistory.length - 1) {
+          setUserInput(commandHistory[currentCommandIndex + 1]);
+          setCurrentCommandIndex(prev => prev + 1);
+        } else {
+          setUserInput('');
+          setCurrentCommandIndex(commandHistory.length);
+        }
+      }
     }
   };
 
@@ -464,36 +472,40 @@ const Terminal = () => {
 
   return (
     <>
-      <div className="terminal-container">
+      <div className="terminal-container" role="region" aria-label="Interactive Terminal">
         {/* Header remains the same */}
-        <div className="terminal-header">
-          <div className="terminal-controls">
+        <div className="terminal-header" role="banner">
+          <div className="terminal-controls" aria-hidden="true">
             <div className="control close"></div>
             <div className="control minimize"></div>
             <div className="control maximize"></div>
           </div>
-          <div className="terminal-title">mehmetakif@kali: ~</div>
+          <div className="terminal-title" id="terminal-title">mehmetakif@kali: ~</div>
         </div>
         {/* Use a div for content area to contain the pre and the anchor */}
         <div
-          className="terminal-content-area" // New wrapper class
+          className="terminal-content-area"
           style={{
-            height: 'calc(100% - 40px)', // Height of container minus header
-            overflowY: 'auto',          // Make this the scrollable element
-            position: 'relative',       // Needed for absolute positioned input
+            height: 'calc(100% - 40px)',
+            overflowY: 'auto',         
+            position: 'relative',      
           }}
-          onClick={handleContainerClick} // Click focuses input
-          ref={contentRef} // Ref on the scrollable container
+          onClick={handleContainerClick}
+          ref={contentRef}
+          role="log"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-relevant="additions"
+          aria-labelledby="terminal-title"
         >
           <pre
-            className="terminal-text" // Keep pre for formatting
+            className="terminal-text"
             style={{
-              // Remove height/overflow from pre, let wrapper handle scroll
               width: '100%',
-              margin: 0,      // Reset default pre margin
-              padding: '5px 10px', // Add padding inside the scroll area
+              margin: 0,     
+              padding: '5px 10px',
               boxSizing: 'border-box',
-              minHeight: '100%' // Ensure it tries to fill the container
+              minHeight: '100%'
             }}
           >
             {currentText.map((text, index) => (
@@ -533,7 +545,7 @@ const Terminal = () => {
               style={{ height: '1px', width: '1px', opacity: 0 }} // Small, invisible anchor
             />
           </pre>
-        </div> {/* End terminal-content-area */}
+        </div>
 
         {/* Hidden input, positioned absolutely relative to terminal-content-area */}
         <input
@@ -543,7 +555,7 @@ const Terminal = () => {
           value={userInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          aria-label="Terminal input"
+          aria-label="Terminal command input"
           style={{
             position: 'absolute',
             left: '-9999px',
@@ -561,11 +573,11 @@ const Terminal = () => {
           spellCheck="false"
           tabIndex={0}
         />
-      </div> {/* End terminal-container */}
+      </div>
 
       {/* Social Buttons and Flag Submission remain the same */}
-      <div className="social-buttons-container">
-         {/* LinkedIn */}
+      <div className="social-buttons-container" role="navigation" aria-label="Social Media Links">
+        {/* LinkedIn */}
         <a
           href="https://www.linkedin.com/in/mehmet-akif-vardar/"
           target="_blank"
@@ -577,7 +589,7 @@ const Terminal = () => {
           </svg>
           <span>LinkedIn</span>
         </a>
-         {/* TryHackMe */}
+        {/* TryHackMe */}
         <a
           href="https://tryhackme.com/p/m4k"
           target="_blank"
@@ -589,7 +601,7 @@ const Terminal = () => {
           </svg>
           <span>TryHackMe</span>
         </a>
-         {/* GitHub */}
+        {/* GitHub */}
         <a
           href="https://github.com/devmehmetakifv"
           target="_blank"
@@ -603,7 +615,7 @@ const Terminal = () => {
         </a>
       </div>
 
-      <div className="flag-submission-container">
+      <div className="flag-submission-container" role="form" aria-label="Flag submission">
         <div className="flag-input-wrapper">
           <input
             type="text"
@@ -616,17 +628,19 @@ const Terminal = () => {
             placeholder="Did you find the flag?"
             className={`flag-input ${flagSubmitted ? 'flag-input-success' : ''} ${flagError ? 'flag-input-error' : ''}`}
             disabled={flagSubmitted}
-            tabIndex={-1} // Make it unfocusable
+            tabIndex={-1}
+            aria-label="Flag input field"
           />
-          {flagError && <div className="flag-error-message">Incorrect flag. Try again!</div>}
+          {flagError && <div className="flag-error-message" role="alert">Incorrect flag. Try again!</div>}
         </div>
         <button
           onClick={checkFlag}
           className={`flag-submit-button ${flagSubmitted ? 'flag-submit-success' : ''}`}
           disabled={flagSubmitted}
-          tabIndex={-1} // Make it unfocusable
+          tabIndex={-1}
+          aria-label="Submit flag"
         >
-          <svg className="paper-plane-icon" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="paper-plane-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
           </svg>
         </button>

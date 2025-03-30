@@ -6,10 +6,14 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate-icons": "node scripts/generate-icons.js && node scripts/generate-ico.js",
+    "generate-og-image": "node scripts/generate-og-image.js",
+    "prepare-assets": "npm run generate-icons && npm run generate-og-image"
   },
   "dependencies": {
     "@vercel/analytics": "^1.5.0",
+    "@vercel/speed-insights": "^1.2.0",
     "next": "15.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -22,6 +26,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.2.4",
+    "sharp": "^0.33.2",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^6.2.3"

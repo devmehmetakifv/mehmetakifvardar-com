@@ -123,6 +123,12 @@ body {
   }
 }
 
+@media (max-width: 1400px) {
+  .terminal-text {
+    font-size: 15px;
+  }
+}
+
 @media (max-width: 1200px) {
   .terminal-container {
     height: 600px;
@@ -130,6 +136,12 @@ body {
 
   .terminal-text {
     font-size: 14px;
+  }
+}
+
+@media (max-width: 992px) {
+  .terminal-text {
+    font-size: 13px;
   }
 }
 
@@ -161,9 +173,9 @@ body {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 576px) {
   .terminal-container {
-    height: 400px;
+    height: 450px;
   }
   
   .terminal-content {
@@ -174,6 +186,10 @@ body {
     font-size: 11px;
   }
   
+  .terminal-title {
+    font-size: 10px;
+  }
+  
   .cursor {
     width: 6px;
     height: 13px;
@@ -181,6 +197,60 @@ body {
   
   .flag-input-wrapper {
     margin-right: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .terminal-container {
+    height: 400px;
+  }
+  
+  .terminal-content {
+    padding: 15px 10px;
+  }
+  
+  .terminal-text {
+    font-size: 10px;
+  }
+  
+  .terminal-title {
+    font-size: 9px;
+  }
+  
+  .cursor {
+    width: 5px;
+    height: 12px;
+  }
+  
+  .flag-input-wrapper {
+    margin-right: 20px;
+  }
+}
+
+@media (max-width: 360px) {
+  .terminal-container {
+    height: 350px;
+  }
+  
+  .terminal-content {
+    padding: 12px 8px;
+  }
+  
+  .terminal-text {
+    font-size: 9px;
+  }
+  
+  .terminal-title {
+    font-size: 8px;
+  }
+  
+  .cursor {
+    width: 4px;
+    height: 10px;
+  }
+  
+  .flag-input-wrapper {
+    margin-right: 18px;
   }
 }
 
@@ -333,12 +403,12 @@ body {
 }
 
 .terminal-text {
-  color: var(--terminal-text);
-  font-family: 'Fira Code', monospace;
   font-size: 16px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-wrap: break-word;
+  font-family: 'Fira Code', monospace;
+  color: var(--terminal-text);
   margin: 0;
   padding: 0;
 }

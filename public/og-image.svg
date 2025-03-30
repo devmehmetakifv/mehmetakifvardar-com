@@ -1,0 +1,39 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#000000"/>
+  
+  <!-- Terminal Window -->
+  <rect x="150" y="115" width="900" height="400" rx="10" fill="#1E1E1E"/>
+  
+  <!-- Terminal Header -->
+  <rect x="150" y="115" width="900" height="40" rx="10" fill="#333333"/>
+  <circle cx="180" cy="135" r="10" fill="#FF5F56"/>
+  <circle cx="210" cy="135" r="10" fill="#FFBD2E"/>
+  <circle cx="240" cy="135" r="10" fill="#27C93F"/>
+  <text x="600" y="140" font-family="Courier New" font-size="18" fill="white" text-anchor="middle">mehmetakif@kali: ~</text>
+  
+  <!-- Terminal Content -->
+  <text x="170" y="190" font-family="Courier New" font-size="22" fill="#61AFEF">┌──(mehmetakif㉿kali)-[~]</text>
+  <text x="170" y="220" font-family="Courier New" font-size="22" fill="#61AFEF">└─$ </text>
+  <text x="210" y="220" font-family="Courier New" font-size="22" fill="#E5C07B">whoami</text>
+  
+  <!-- Response text -->
+  <text x="170" y="260" font-family="Courier New" font-size="18" fill="#FFFFFF">Mehmet Akif Vardar</text>
+  <text x="170" y="290" font-family="Courier New" font-size="18" fill="#FFFFFF">Cybersecurity Researcher &amp; Developer</text>
+  <text x="170" y="320" font-family="Courier New" font-size="18" fill="#FFFFFF">Specialized in Offensive Security &amp; Penetration Testing</text>
+  <text x="170" y="350" font-family="Courier New" font-size="18" fill="#FFFFFF">Web Application Security | Network Security | CTF Player</text>
+  <text x="170" y="380" font-family="Courier New" font-size="18" fill="#FFFFFF">.NET Core Developer | TryHackMe Top 5%</text>
+  
+  <!-- Prompt again -->
+  <text x="170" y="430" font-family="Courier New" font-size="22" fill="#61AFEF">┌──(mehmetakif㉿kali)-[~]</text>
+  <text x="170" y="460" font-family="Courier New" font-size="22" fill="#61AFEF">└─$ </text>
+  <text x="210" y="460" font-family="Courier New" font-size="22" fill="#E5C07B">_</text>
+  
+  <!-- Blinking cursor -->
+  <rect x="210" y="448" width="15" height="20" fill="#FFFFFF">
+    <animate attributeName="opacity" values="1;0;1" dur="1.5s" repeatCount="indefinite" />
+  </rect>
+  
+  <!-- Website URL -->
+  <text x="600" y="540" font-family="Arial" font-size="24" fill="#FFFFFF" text-anchor="middle">mehmetakifvardar.com</text>
+</svg> 
