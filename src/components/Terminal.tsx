@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, KeyboardEvent, useMemo } from 'react';
+import { useEffect, useState, useRef, KeyboardEvent, useMemo, useCallback } from 'react';
 
 const Terminal = () => {
   const [currentText, setCurrentText] = useState<Array<{ content: string; isResponse: boolean }>>([]);
@@ -72,7 +72,7 @@ const Terminal = () => {
       setIsTerminalReady(true);
     }, TERMINAL_ANIMATION_DURATION);
     return () => clearTimeout(timer);
-  }, [commandResponses]);
+  }, []);
 
   useEffect(() => {
     audioRef.current = new Audio('/keyboard.mp3');
@@ -81,7 +81,7 @@ const Terminal = () => {
       audioRef.current?.pause();
       audioRef.current = null;
     };
-  }, [commandResponses]);
+  }, []);
 
   const calculateTypingSpeed = (content: string, isCommand: boolean): number => {
     if (isCommand) {
@@ -97,7 +97,7 @@ const Terminal = () => {
   // --- SCROLLING LOGIC ---
 
   // Modify forceScrollToBottom to use scrollTop instead of scrollIntoView
-  const forceScrollToBottom = () => {
+  const forceScrollToBottom = useCallback(() => {
     if (!userScrolledRef.current || isAtBottomRef.current) {
       requestAnimationFrame(() => {
         if (contentRef.current) {
@@ -105,10 +105,10 @@ const Terminal = () => {
         }
       });
     }
-  };
+  }, []);
 
   // Update scroll event handler
-  const handleScroll = (e: Event) => {
+  const handleScroll = useCallback((e: Event) => {
     const element = e.target as HTMLDivElement;
     if (element) {
       const { scrollTop, scrollHeight, clientHeight } = element;
@@ -118,7 +118,7 @@ const Terminal = () => {
         userScrolledRef.current = true;
       }
     }
-  };
+  }, []);
 
   // Set up MutationObserver for general content changes
   useEffect(() => {
@@ -127,7 +127,6 @@ const Terminal = () => {
         observerRef.current.disconnect();
       }
       observerRef.current = new MutationObserver(() => {
-        // Only scroll if we're at the bottom or haven't scrolled up
         if (!userScrolledRef.current || isAtBottomRef.current) {
           forceScrollToBottom();
         }
@@ -139,14 +138,14 @@ const Terminal = () => {
       });
     }
     return () => observerRef.current?.disconnect();
-  }, [commandResponses]); // Empty dependency array since we're using refs
+  }, [forceScrollToBottom]);
 
   // Scroll when new text lines are added (but not during typing)
   useEffect(() => {
     if (!isTypingCommand && !isTypingResponse && (!userScrolledRef.current || isAtBottomRef.current)) {
       forceScrollToBottom();
     }
-  }, [currentText, isTypingCommand, isTypingResponse]);
+  }, [currentText, isTypingCommand, isTypingResponse, forceScrollToBottom]);
 
   // Scroll continuously during response typing
   useEffect(() => {
@@ -159,26 +158,41 @@ const Terminal = () => {
     return () => {
       if (scrollInterval) clearInterval(scrollInterval);
     };
-  }, [isTypingResponse]);
+  }, [isTypingResponse, forceScrollToBottom]);
 
-  // Scroll when user is typing the command
+  // Add scroll event listener
   useEffect(() => {
-    if (isWaitingForInput && (!userScrolledRef.current || isAtBottomRef.current)) {
-      forceScrollToBottom();
+    if (contentRef.current) {
+      contentRef.current.addEventListener('scroll', handleScroll);
+      return () => contentRef.current?.removeEventListener('scroll', handleScroll);
     }
-  }, [userInput, isWaitingForInput]);
+  }, [handleScroll]);
+
+  // Reset userScrolled when user manually scrolls to bottom
+  useEffect(() => {
+    if (isAtBottomRef.current) {
+      userScrolledRef.current = false;
+    }
+  }, [isAtBottomRef.current]);
 
   // --- FOCUS LOGIC ---
 
   // Focus input when terminal is ready and waiting for input starts
   useEffect(() => {
     if (isTerminalReady && isWaitingForInput && inputRef.current) {
-      // Use a small timeout to ensure focus happens after render and doesn't fight scroll
       const timer = setTimeout(() => {
         inputRef.current?.focus({ preventScroll: true });
-        // Optionally force scroll again after focus, just in case
-        forceScrollToBottom();
-      }, 0); // 0ms timeout often works, maybe 50ms if issues persist
+        // Add a small delay to ensure the keyboard is up before scrolling
+        setTimeout(() => {
+          if (contentRef.current) {
+            // Scroll to show more content, leaving less space at the bottom
+            const scrollAmount = Math.min(contentRef.current.scrollHeight, window.innerHeight * 0.3);
+            contentRef.current.scrollTop = contentRef.current.scrollHeight - scrollAmount;
+            // Prevent scroll on subsequent input changes
+            userScrolledRef.current = true;
+          }
+        }, 100);
+      }, 0);
       return () => clearTimeout(timer);
     }
   }, [isTerminalReady, isWaitingForInput]);
@@ -309,7 +323,7 @@ const Terminal = () => {
           // Add special formatting for the flag
            setCurrentText(prev => [
               ...prev,
-              { content: `<span class="flag-highlight">${FLAG_VALUE}</span> <button class="inline-copy-btn" onclick="navigator.clipboard.writeText('${FLAG_VALUE}'); this.textContent = 'Copied! ✓'; setTimeout(() => this.textContent = 'Copy Flag 📋', 2000);">Copy Flag 📋</button>\n\n`, isResponse: true }
+              { content: `<span class="flag-highlight">${FLAG_VALUE}</span> <button class="inline-copy-btn" onclick="window.copyFlag('${FLAG_VALUE}')">Copy Flag 📋</button>\n\n`, isResponse: true }
           ]);
       } else {
           // Add normal response with consistent white color
@@ -326,11 +340,29 @@ const Terminal = () => {
   // --- INPUT HANDLERS ---
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isTypingCommand && !isTypingResponse) {
-      e.preventDefault(); // Prevent potential form submission if wrapped
-      processCommand(userInput);
+    if (e.key === 'Enter') {
+      e.preventDefault(); // Prevent form submission
+      e.stopPropagation(); // Stop event from bubbling up
+      const command = userInput.trim();
+      if (command) {
+        processCommand(command);
+        setUserInput(''); // Clear input immediately
+      } else {
+        // If empty command, just add a new prompt line
+        setCurrentText(prev => [...prev, { content: `<span class="terminal-prompt">${PROMPT}</span><span class="terminal-command"></span>\n`, isResponse: false }]);
+        setUserInput('');
+      }
+      setIsWaitingForInput(true);
     }
-    // No need to manually handle scroll here anymore
+  };
+
+  // Update the flag input to prevent it from stealing focus
+  const handleFlagInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      checkFlag();
+    }
   };
 
   // Blinking cursor effect
@@ -339,12 +371,22 @@ const Terminal = () => {
       setShowCursor(prev => !prev);
     }, 530);
     return () => clearInterval(cursorInterval);
-  }, [commandResponses]);
+  }, []);
 
   // Handle container click to focus input
   const handleContainerClick = () => {
     if (inputRef.current && isWaitingForInput) {
-        inputRef.current.focus({ preventScroll: true });
+      inputRef.current.focus({ preventScroll: true });
+      // Add a small delay to ensure the keyboard is up before scrolling
+      setTimeout(() => {
+        if (contentRef.current) {
+          // Scroll to show more content, leaving less space at the bottom
+          const scrollAmount = Math.min(contentRef.current.scrollHeight, window.innerHeight * 0.3);
+          contentRef.current.scrollTop = contentRef.current.scrollHeight - scrollAmount;
+          // Prevent scroll on subsequent input changes
+          userScrolledRef.current = true;
+        }
+      }, 100);
     }
   };
 
@@ -364,40 +406,60 @@ const Terminal = () => {
     }
   };
 
-  //const copyFlagToClipboard = (buttonElement?: HTMLElement | null) => {
-  //  navigator.clipboard.writeText(FLAG_VALUE).then(() => {
-  //    if (buttonElement) {
-  //      const originalText = buttonElement.textContent;
-  //      buttonElement.textContent = 'Copied! ✓';
-  //      setTimeout(() => {
-  //        buttonElement.textContent = originalText; // Restore original text
-  //      }, 2000);
-  //    } else {
-  //      // Fallback for potential direct calls without button context
-  //      setIsCopied(true);
-  //      setTimeout(() => setIsCopied(false), 2000);
-  //    }
-  //  }).catch(err => {
-  //    console.error('Could not copy text: ', err);
-  //  });
-  //};
-
-  // Add scroll event listener
-  useEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.addEventListener('scroll', handleScroll);
-      return () => {
-        contentRef.current?.removeEventListener('scroll', handleScroll);
-      };
+  // Add this function near the top of the component
+  const copyToClipboard = useCallback(async (text: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Failed to copy text: ', err);
+        }
+        textArea.remove();
+      }
+      return true;
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      return false;
     }
-  }, [commandResponses]); // Empty dependency array since we're using refs
+  }, []);
 
-  // Reset userScrolled when user manually scrolls to bottom
+  // Add this useEffect near the other useEffects
   useEffect(() => {
-    if (isAtBottomRef.current) {
-      userScrolledRef.current = false;
-    }
-  }, [commandResponses]);
+    (window as any).copyFlag = async (flag: string) => {
+      const button = document.activeElement as HTMLButtonElement;
+      if (button) {
+        const success = await copyToClipboard(flag);
+        if (success) {
+          button.textContent = 'Copied! ✓';
+          setTimeout(() => {
+            button.textContent = 'Copy Flag 📋';
+          }, 2000);
+        }
+      }
+    };
+
+    return () => {
+      delete (window as any).copyFlag;
+    };
+  }, [copyToClipboard]);
+
+  // Update the input handling
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUserInput(e.target.value);
+    if (flagError) setFlagError(false);
+    // Remove scroll prevention on input change
+  };
 
   return (
     <>
@@ -476,30 +538,27 @@ const Terminal = () => {
         <input
           ref={inputRef}
           type="text"
-          className="terminal-input" // Keep for potential styling (though hidden)
+          className="terminal-input"
           value={userInput}
-          onChange={(e) => {
-            // *** FIX: Removed manual scroll restoration ***
-            setUserInput(e.target.value);
-            if (flagError) setFlagError(false);
-          }}
-          onKeyDown={handleKeyDown} // Keep keydown handler
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
           aria-label="Terminal input"
           style={{
-            position: 'absolute', // Position relative to parent
-            left: '-9999px',       // Hide off-screen
-            top: '0',             // Position doesn't really matter
-            width: '1px',         // Minimal size
+            position: 'absolute',
+            left: '-9999px',
+            top: '0',
+            width: '1px',
             height: '1px',
             opacity: 0,
             border: 'none',
             padding: 0,
+            zIndex: 1000,
           }}
-          // Auto-attributes for accessibility/mobile often useful
           autoCapitalize="none"
           autoComplete="off"
           autoCorrect="off"
           spellCheck="false"
+          tabIndex={0}
         />
       </div> {/* End terminal-container */}
 
@@ -552,9 +611,11 @@ const Terminal = () => {
               setFlagInput(e.target.value);
               setFlagError(false);
             }}
+            onKeyDown={handleFlagInputKeyDown}
             placeholder="Did you find the flag?"
             className={`flag-input ${flagSubmitted ? 'flag-input-success' : ''} ${flagError ? 'flag-input-error' : ''}`}
             disabled={flagSubmitted}
+            tabIndex={-1} // Make it unfocusable
           />
           {flagError && <div className="flag-error-message">Incorrect flag. Try again!</div>}
         </div>
@@ -562,6 +623,7 @@ const Terminal = () => {
           onClick={checkFlag}
           className={`flag-submit-button ${flagSubmitted ? 'flag-submit-success' : ''}`}
           disabled={flagSubmitted}
+          tabIndex={-1} // Make it unfocusable
         >
           <svg className="paper-plane-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
