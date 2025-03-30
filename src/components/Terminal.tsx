@@ -436,7 +436,7 @@ const Terminal = () => {
 
   // Add this useEffect near the other useEffects
   useEffect(() => {
-    (window as any).copyFlag = async (flag: string) => {
+    (window as unknown as { copyFlag?: (flag: string) => Promise<void> }).copyFlag = async (flag: string) => {
       const button = document.activeElement as HTMLButtonElement;
       if (button) {
         const success = await copyToClipboard(flag);
@@ -448,11 +448,12 @@ const Terminal = () => {
         }
       }
     };
-
+  
     return () => {
-      delete (window as any).copyFlag;
+      delete (window as unknown as { copyFlag?: (flag: string) => Promise<void> }).copyFlag;
     };
   }, [copyToClipboard]);
+  
 
   // Update the input handling
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
