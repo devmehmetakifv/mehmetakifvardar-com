@@ -86,6 +86,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
         <link rel="canonical" href="https://mehmetakifvardar.com" />
+        <meta name="google-site-verification" content="Vv8_kRXDaGQxmi0DaySSV_KnlnW7bQOyny2LYFffCfU" />
       </head>
       <body className={firaCode.className}>
         {children}
